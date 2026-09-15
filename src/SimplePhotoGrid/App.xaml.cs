@@ -37,6 +37,7 @@ public partial class App : Application
 
         _serverCancel = new CancellationTokenSource();
         _ = Task.Run(() => RunPipeServerAsync(_serverCancel.Token));
+        _ = Task.Run(Rendering.ScratchSpace.SweepOldJobs);
     }
 
     protected override void OnExit(ExitEventArgs e)

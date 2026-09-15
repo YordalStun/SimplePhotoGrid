@@ -327,7 +327,7 @@ public partial class MainWindow : Window
             var reporter = new Progress<PreparationProgress>(progressWindow.Report);
             var token = progressWindow.Token;
 
-            var prepared = await Task.Run(
+            using var prepared = await Task.Run(
                 () => PrintImagePreparer.Prepare(photos, targetPixels, _settings.Quality.JpegQuality,
                                                  reporter, token),
                 token);
@@ -336,6 +336,9 @@ public partial class MainWindow : Window
             progressWindow.ShowSending();
 
             var renderer = new SheetRenderer(photos, _settings, prepared);
+
+            // The scratch files stay on disk until PrintDocument returns: the serializer reads
+            // each one as it writes the spool file.
             dialog.PrintDocument(new SheetPaginator(renderer), "Simple Photo Grid");
 
             StatusText.Text =

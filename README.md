@@ -63,5 +63,9 @@ button twice (remove, then add) to repoint it.
   roughly 530px at 300dpi rather than the 2400px the source carries, so the spool file drops by
   an order of magnitude or more. Images that may carry transparency stay PNG so they do not
   gain a black background.
+- Prepared images are written to a scratch directory under %TEMP%\SimplePhotoGrid and deleted
+  once the job is spooled. They are files rather than memory buffers because WPF's XPS
+  serializer identifies image resources by their decoder: frames built from a MemoryStream all
+  look identical to it, and every cell on the sheet ends up printing the first photo.
 - Ordering in the list is the order on the sheet, left to right, top to bottom. **Sort A-Z** uses
   natural ordering (IMG_2 before IMG_10).
