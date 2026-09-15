@@ -38,8 +38,9 @@ public sealed class PaperSize
     public static readonly PaperSize A5 = new("A5 (148 x 210 mm)", 148, 210, PageMediaSizeName.ISOA5);
     public static readonly PaperSize Letter = new("Letter (8.5 x 11 in)", 215.9, 279.4, PageMediaSizeName.NorthAmericaLetter);
     public static readonly PaperSize Legal = new("Legal (8.5 x 14 in)", 215.9, 355.6, PageMediaSizeName.NorthAmericaLegal);
-    public static readonly PaperSize Photo6x4 = new("Photo 6 x 4 in", 101.6, 152.4, PageMediaSizeName.NorthAmericaPhoto);
+    public static readonly PaperSize Photo6x4 = new("Photo 6 x 4 in", 101.6, 152.4, PageMediaSizeName.NorthAmerica4x6);
+    public static readonly PaperSize Photo7x5 = new("Photo 7 x 5 in", 127.0, 177.8, PageMediaSizeName.NorthAmerica5x7);
 
     public static IReadOnlyList<PaperSize> All { get; } =
-        new[] { A4, A3, A5, Letter, Legal, Photo6x4 };
+        new[] { A4, A3, A5, Letter, Legal, Photo6x4, Photo7x5 };
 }
