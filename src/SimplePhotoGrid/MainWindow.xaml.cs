@@ -30,6 +30,8 @@ public partial class MainWindow : Window
         PaperCombo.SelectedItem = PaperSize.A4;
         GridCombo.ItemsSource = GridPreset.All;
         GridCombo.SelectedItem = GridPreset.Auto;
+        QualityCombo.ItemsSource = PrintQuality.All;
+        QualityCombo.SelectedItem = PrintQuality.Normal;
 
         // Explorer fires one process per selected file; the pipe delivers them in a burst, so
         // coalesce redraws rather than re-rendering the sheet twenty times.
@@ -213,6 +215,7 @@ public partial class MainWindow : Window
         _settings.CaptionFontSize = CaptionSizeSlider.Value;
         _settings.ShowBorders = BordersCheck.IsChecked == true;
         _settings.ShowPageNumbers = PageNumbersCheck.IsChecked == true;
+        _settings.Quality = QualityCombo.SelectedItem as PrintQuality ?? PrintQuality.Normal;
     }
 
     private static double ParseNumber(string text, double fallback, double min, double max) =>
@@ -265,8 +268,12 @@ public partial class MainWindow : Window
 
     // ---------------------------------------------------------------- printing
 
-    private void OnPrintClick(object sender, RoutedEventArgs e)
+    private bool _printing;
+
+    private async void OnPrintClick(object sender, RoutedEventArgs e)
     {
+        if (_printing) return;
+
         if (_photos.Count == 0)
         {
             MessageBox.Show(this, "Add some photos first.", "Simple Photo Grid",
@@ -275,6 +282,7 @@ public partial class MainWindow : Window
         }
 
         ReadSettings();
+
         // Page ranges are left off: the sheet is generated as a whole and the range UI would
         // imply a selection we do not honour.
         var dialog = new PrintDialog { UserPageRangeEnabled = false };
@@ -299,17 +307,56 @@ public partial class MainWindow : Window
 
         if (dialog.ShowDialog() != true) return;
 
+        _printing = true;
+        var photos = _photos.ToList();
+
+        // Photos are drawn at cell size, so sending camera-resolution bitmaps to the spooler
+        // wastes tens of megabytes per page. Resample to what the paper can actually resolve.
+        var photoArea = new SheetRenderer(photos, _settings).PhotoAreaDip();
+        var dpi = _settings.Quality.Dpi;
+        var targetPixels = new Size(
+            Math.Ceiling(photoArea.Width / 96.0 * dpi),
+            Math.Ceiling(photoArea.Height / 96.0 * dpi));
+
+        var progressWindow = new PrintProgressWindow { Owner = this };
+        IsEnabled = false;
+        progressWindow.Show();
+
         try
         {
-            var renderer = new SheetRenderer(_photos.ToList(), _settings);
-            var paginator = new SheetPaginator(renderer);
-            dialog.PrintDocument(paginator, "Simple Photo Grid");
-            StatusText.Text = $"Sent {renderer.PageCount} page(s) to {dialog.PrintQueue?.Name}";
+            var reporter = new Progress<PreparationProgress>(progressWindow.Report);
+            var token = progressWindow.Token;
+
+            var prepared = await Task.Run(
+                () => PrintImagePreparer.Prepare(photos, targetPixels, _settings.Quality.JpegQuality,
+                                                 reporter, token),
+                token);
+
+            token.ThrowIfCancellationRequested();
+            progressWindow.ShowSending();
+
+            var renderer = new SheetRenderer(photos, _settings, prepared);
+            dialog.PrintDocument(new SheetPaginator(renderer), "Simple Photo Grid");
+
+            StatusText.Text =
+                $"Sent {renderer.PageCount} page(s) to {dialog.PrintQueue?.Name} " +
+                $"\u00b7 {PrintImagePreparer.DescribeSize(prepared.TotalBytes)} of image data";
+        }
+        catch (OperationCanceledException)
+        {
+            StatusText.Text = "Printing cancelled.";
         }
         catch (Exception ex)
         {
             MessageBox.Show(this, "Printing failed:\n\n" + ex.Message, "Simple Photo Grid",
                             MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        finally
+        {
+            progressWindow.AllowClose();
+            progressWindow.Close();
+            IsEnabled = true;
+            _printing = false;
         }
     }
 

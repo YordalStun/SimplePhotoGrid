@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Windows;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using SimplePhotoGrid.Model;
 
 namespace SimplePhotoGrid.Rendering;
@@ -14,6 +15,8 @@ public sealed class SheetRenderer
     private static readonly Pen BorderPen = new(new SolidColorBrush(Color.FromRgb(0xBB, 0xBB, 0xBB)), 0.75);
     private static readonly Brush PlaceholderFill = new SolidColorBrush(Color.FromRgb(0xF0, 0xF0, 0xF0));
 
+    private const double FooterHeightDip = 12.0;
+
     static SheetRenderer()
     {
         FooterBrush.Freeze();
@@ -23,14 +26,21 @@ public sealed class SheetRenderer
 
     private readonly IReadOnlyList<PhotoItem> _photos;
     private readonly SheetSettings _settings;
+    private readonly PreparedImageSet _prepared;
 
-    public SheetRenderer(IReadOnlyList<PhotoItem> photos, SheetSettings settings)
+    /// <param name="prepared">Print-sized, compressed images. When empty the renderer falls back
+    /// to each photo's preview bitmap, which is what the on-screen preview uses.</param>
+    public SheetRenderer(IReadOnlyList<PhotoItem> photos, SheetSettings settings,
+                         PreparedImageSet? prepared = null)
     {
         _photos = photos;
         _settings = settings;
-        PerPage = ResolvePerPage(out var columns, out var rows);
-        Columns = columns;
-        Rows = rows;
+        _prepared = prepared ?? PreparedImageSet.Empty;
+
+        var (columns, rows) = _settings.Grid.Resolve(_photos.Count, _settings.Landscape);
+        Columns = Math.Max(columns, 1);
+        Rows = Math.Max(rows, 1);
+        PerPage = Math.Min(Columns * Rows, GridPreset.MaxPerPage);
         PageCount = _photos.Count == 0 ? 1 : (int)Math.Ceiling(_photos.Count / (double)PerPage);
     }
 
@@ -40,10 +50,62 @@ public sealed class SheetRenderer
     public int PageCount { get; }
     public Size PageSize => _settings.PageSize;
 
-    private int ResolvePerPage(out int columns, out int rows)
+    private sealed record PageLayout(Rect Grid, FormattedText? Title, Point TitleOrigin,
+                                     FormattedText? Footer, Point FooterOrigin);
+
+    private PageLayout Layout(int pageIndex)
     {
-        (columns, rows) = _settings.Grid.Resolve(_photos.Count, _settings.Landscape);
-        return Math.Min(Math.Max(columns * rows, 1), GridPreset.MaxPerPage);
+        var page = _settings.PageSize;
+        var margin = _settings.MarginDip;
+        var content = new Rect(
+            margin, margin,
+            Math.Max(page.Width - margin * 2, 1),
+            Math.Max(page.Height - margin * 2, 1));
+
+        FormattedText? title = null;
+        var titleOrigin = new Point();
+        var showTitle = !string.IsNullOrWhiteSpace(_settings.Title) &&
+                        (_settings.TitleOnEveryPage || pageIndex == 0);
+
+        if (showTitle)
+        {
+            title = FormatText(_settings.Title, _settings.TitleFontSize, FontWeights.SemiBold,
+                               Brushes.Black, content.Width, TextAlignment.Center);
+            titleOrigin = new Point(content.X, content.Y);
+            var used = title.Height + _settings.TitleFontSize * 0.5;
+            content = new Rect(content.X, content.Y + used, content.Width, Math.Max(content.Height - used, 1));
+        }
+
+        FormattedText? footer = null;
+        var footerOrigin = new Point();
+        if (_settings.ShowPageNumbers && PageCount > 1)
+        {
+            footer = FormatText($"Page {pageIndex + 1} of {PageCount}", 8, FontWeights.Normal,
+                                FooterBrush, content.Width, TextAlignment.Center);
+            footerOrigin = new Point(content.X, content.Bottom - footer.Height);
+            content = new Rect(content.X, content.Y, content.Width, Math.Max(content.Height - FooterHeightDip, 1));
+        }
+
+        return new PageLayout(content, title, titleOrigin, footer, footerOrigin);
+    }
+
+    private double CaptionHeight => _settings.ShowCaptions ? _settings.CaptionFontSize * 1.45 : 0;
+
+    private Size CellSize(Rect grid)
+    {
+        var gap = _settings.GapDip;
+        return new Size(
+            Math.Max((grid.Width - gap * (Columns - 1)) / Columns, 1),
+            Math.Max((grid.Height - gap * (Rows - 1)) / Rows, 1));
+    }
+
+    /// <summary>Area one photo occupies on paper, in DIPs (1/96"). Drives how far the print
+    /// images are downsampled, so the spool carries paper-sized pixels rather than camera-sized
+    /// ones.</summary>
+    public Size PhotoAreaDip(int pageIndex = 0)
+    {
+        var cell = CellSize(Layout(pageIndex).Grid);
+        return new Size(cell.Width, Math.Max(cell.Height - CaptionHeight, 1));
     }
 
     public DrawingVisual RenderPage(int pageIndex)
@@ -58,49 +120,24 @@ public sealed class SheetRenderer
 
     private void Draw(DrawingContext dc, int pageIndex)
     {
-        var page = _settings.PageSize;
-        dc.DrawRectangle(Brushes.White, null, new Rect(page));
+        dc.DrawRectangle(Brushes.White, null, new Rect(_settings.PageSize));
 
-        var margin = _settings.MarginDip;
-        var content = new Rect(
-            margin, margin,
-            Math.Max(page.Width - margin * 2, 1),
-            Math.Max(page.Height - margin * 2, 1));
+        var layout = Layout(pageIndex);
+        if (layout.Title is not null) dc.DrawText(layout.Title, layout.TitleOrigin);
+        if (layout.Footer is not null) dc.DrawText(layout.Footer, layout.FooterOrigin);
 
-        var showTitle = !string.IsNullOrWhiteSpace(_settings.Title) &&
-                        (_settings.TitleOnEveryPage || pageIndex == 0);
-
-        if (showTitle)
-        {
-            var title = FormatText(_settings.Title, _settings.TitleFontSize, FontWeights.SemiBold,
-                                   Brushes.Black, content.Width, TextAlignment.Center);
-            dc.DrawText(title, new Point(content.X, content.Y));
-            var used = title.Height + _settings.TitleFontSize * 0.5;
-            content = new Rect(content.X, content.Y + used, content.Width, Math.Max(content.Height - used, 1));
-        }
-
-        if (_settings.ShowPageNumbers && PageCount > 1)
-        {
-            var footerHeight = 12.0;
-            var footer = FormatText($"Page {pageIndex + 1} of {PageCount}", 8, FontWeights.Normal,
-                                    FooterBrush, content.Width, TextAlignment.Center);
-            dc.DrawText(footer, new Point(content.X, content.Bottom - footer.Height));
-            content = new Rect(content.X, content.Y, content.Width, Math.Max(content.Height - footerHeight, 1));
-        }
-
-        DrawGrid(dc, content, pageIndex);
+        DrawGrid(dc, layout.Grid, pageIndex);
     }
 
     private void DrawGrid(DrawingContext dc, Rect area, int pageIndex)
     {
         var gap = _settings.GapDip;
-        var cellWidth = (area.Width - gap * (Columns - 1)) / Columns;
-        var cellHeight = (area.Height - gap * (Rows - 1)) / Rows;
-        if (cellWidth <= 1 || cellHeight <= 1) return;
+        var cell = CellSize(area);
+        if (cell.Width <= 1 || cell.Height <= 1) return;
 
-        var captionHeight = _settings.ShowCaptions ? _settings.CaptionFontSize * 1.45 : 0;
-
+        var captionHeight = CaptionHeight;
         var first = pageIndex * PerPage;
+
         for (var slot = 0; slot < PerPage; slot++)
         {
             var index = first + slot;
@@ -108,19 +145,24 @@ public sealed class SheetRenderer
 
             var column = slot % Columns;
             var row = slot / Columns;
-            var cell = new Rect(
-                area.X + column * (cellWidth + gap),
-                area.Y + row * (cellHeight + gap),
-                cellWidth, cellHeight);
+            var bounds = new Rect(
+                area.X + column * (cell.Width + gap),
+                area.Y + row * (cell.Height + gap),
+                cell.Width, cell.Height);
 
-            DrawCell(dc, cell, _photos[index], captionHeight);
+            DrawCell(dc, bounds, _photos[index], captionHeight);
         }
     }
+
+    private BitmapSource? ImageFor(PhotoItem photo) =>
+        _prepared.Images.TryGetValue(photo.FilePath, out var prepared)
+            ? prepared.Decode()
+            : photo.PrintImage;
 
     private void DrawCell(DrawingContext dc, Rect cell, PhotoItem photo, double captionHeight)
     {
         var imageArea = new Rect(cell.X, cell.Y, cell.Width, Math.Max(cell.Height - captionHeight, 1));
-        var bitmap = photo.PrintImage;
+        var bitmap = ImageFor(photo);
 
         if (bitmap is null)
         {
@@ -156,18 +198,17 @@ public sealed class SheetRenderer
     private FormattedText FormatText(string text, double size, FontWeight weight, Brush brush,
                                      double maxWidth, TextAlignment alignment)
     {
-        var formatted = new FormattedText(
+        return new FormattedText(
             text,
             CultureInfo.CurrentUICulture,
             FlowDirection.LeftToRight,
             new Typeface(_settings.FontFamily, FontStyles.Normal, weight, FontStretches.Normal),
             Math.Max(size, 1),
             brush,
-            96.0 / 96.0)
+            1.0)
         {
             MaxTextWidth = Math.Max(maxWidth, 1),
             TextAlignment = alignment
         };
-        return formatted;
     }
 }

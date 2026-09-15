@@ -23,34 +23,20 @@ jobs:
       - name: Build
         run: dotnet build src/SimplePhotoGrid/SimplePhotoGrid.csproj -c Release
 
-      # Runs anywhere, no .NET install needed on the target machine (~65 MB).
-      - name: Publish self-contained
+      # One self-contained file: .NET is bundled, nothing to install on the target machine.
+      - name: Publish
         run: >
           dotnet publish src/SimplePhotoGrid/SimplePhotoGrid.csproj
           -c Release -r win-x64 --self-contained true
           -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true
           -p:IncludeNativeLibrariesForSelfExtract=true
           -p:DebugType=none
-          -o publish/standalone
-
-      # Needs the .NET 8 Desktop Runtime installed (~200 KB).
-      - name: Publish framework-dependent
-        run: >
-          dotnet publish src/SimplePhotoGrid/SimplePhotoGrid.csproj
-          -c Release -r win-x64 --self-contained false
-          -p:PublishSingleFile=true
-          -p:DebugType=none
-          -o publish/needs-dotnet
+          -o publish
 
       - uses: actions/upload-artifact@v4
         with:
-          name: SimplePhotoGrid-standalone
-          path: publish/standalone/SimplePhotoGrid.exe
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: SimplePhotoGrid-needs-dotnet-runtime
-          path: publish/needs-dotnet/SimplePhotoGrid.exe
+          name: SimplePhotoGrid
+          path: publish/SimplePhotoGrid.exe
 
       # Artifacts are zipped and expire after 90 days. A rolling prerelease gives a stable,
       # direct link to the raw .exe that never expires.
@@ -60,21 +46,17 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          mkdir -p release
-          cp publish/standalone/SimplePhotoGrid.exe release/SimplePhotoGrid.exe
-          cp publish/needs-dotnet/SimplePhotoGrid.exe release/SimplePhotoGrid-needs-dotnet-runtime.exe
 
           notes="Automatic build of \`${GITHUB_REF_NAME}\` at \`${GITHUB_SHA:0:7}\`.
 
-          - **SimplePhotoGrid.exe** - standalone, .NET included, nothing to install.
-          - **SimplePhotoGrid-needs-dotnet-runtime.exe** - small, needs the .NET 8 Desktop Runtime.
+          **SimplePhotoGrid.exe** - standalone, .NET included, nothing to install.
 
           Unsigned, so SmartScreen will warn on first run: More info -> Run anyway."
 
           if gh release view latest-build >/dev/null 2>&1; then
-            gh release upload latest-build release/*.exe --clobber
+            gh release upload latest-build publish/SimplePhotoGrid.exe --clobber
             gh release edit latest-build --notes "$notes" --target "$GITHUB_SHA"
           else
-            gh release create latest-build release/*.exe \
+            gh release create latest-build publish/SimplePhotoGrid.exe \
               --title "Latest build" --notes "$notes" --prerelease --target "$GITHUB_SHA"
           fi

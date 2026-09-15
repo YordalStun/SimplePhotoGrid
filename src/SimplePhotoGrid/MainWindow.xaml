@@ -130,6 +130,11 @@
                     <CheckBox x:Name="PageNumbersCheck" Content="Page numbers (multi-page sheets)"
                               IsChecked="True" Margin="0,6,0,0" Click="OnSettingChanged" />
 
+                    <Label Content="Print quality" Margin="0,10,0,2" />
+                    <ComboBox x:Name="QualityCombo" SelectionChanged="OnSettingChanged" />
+                    <TextBlock Text="Photos are resized to the printed size and compressed, so the print job stays small."
+                               TextWrapping="Wrap" Foreground="#FF666666" FontSize="11" Margin="0,6,0,0" />
+
                     <Button x:Name="ShellButton" Content="Add to Explorer right-click menu"
                             Margin="0,16,0,0" Padding="8,6" Click="OnShellIntegrationClick" />
                 </StackPanel>

@@ -10,6 +10,16 @@ paper size, add a title, print.
 - Live preview that is the exact drawing sent to the printer
 - More than a page's worth of photos spills onto further pages, with page numbers
 - Optional **Explorer right-click entry**: select photos, right-click, "Print with Simple Photo Grid"
+- Photos are **resampled to their printed size and compressed** when you press Print, with a
+  progress bar, so print jobs stay in the megabytes rather than the hundreds of megabytes
+
+## Download
+
+A standalone build (with .NET bundled, nothing to install) is published on every push:
+
+**https://github.com/YordalStun/SimplePhotoGrid/releases/download/latest-build/SimplePhotoGrid.exe**
+
+It is unsigned, so SmartScreen warns on first run: *More info* -> *Run anyway*.
 
 ## Build
 
@@ -23,7 +33,8 @@ Single-file executable with no .NET install needed on the target machine:
 
 ```
 dotnet publish src/SimplePhotoGrid/SimplePhotoGrid.csproj -c Release -r win-x64 ^
-  -p:PublishSingleFile=true -p:SelfContained=true -o publish
+  -p:PublishSingleFile=true -p:SelfContained=true ^
+  -p:EnableCompressionInSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o publish
 ```
 
 ## Explorer right-click integration
@@ -46,7 +57,11 @@ button twice (remove, then add) to repoint it.
 ## Notes
 
 - EXIF orientation is honoured, so phone photos are not printed sideways.
-- Photos are decoded to at most 2400px on the long edge, which stays above 300dpi for any cell on
-  an A3 sheet while keeping memory sane for 32 images.
+- Photos are decoded to at most 2400px on the long edge for the preview.
+- For printing they are resampled again, to the exact size the cell occupies on paper at the
+  chosen DPI, and JPEG compressed. A 4x8 grid cell on A4 is about 1.8 x 1.3 inches, which needs
+  roughly 530px at 300dpi rather than the 2400px the source carries, so the spool file drops by
+  an order of magnitude or more. Images that may carry transparency stay PNG so they do not
+  gain a black background.
 - Ordering in the list is the order on the sheet, left to right, top to bottom. **Sort A-Z** uses
   natural ordering (IMG_2 before IMG_10).
