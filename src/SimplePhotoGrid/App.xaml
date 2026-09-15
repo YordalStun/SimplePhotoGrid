@@ -3,9 +3,11 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <Application.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
+        <!-- No MinWidth: it forced buttons wider than their cell in the photo-list grid and
+             clipped the labels. Buttons that want a floor set it themselves. -->
         <Style TargetType="Button">
-            <Setter Property="Padding" Value="10,4" />
-            <Setter Property="MinWidth" Value="72" />
+            <Setter Property="Padding" Value="8,5" />
+            <Setter Property="MinHeight" Value="28" />
         </Style>
         <Style TargetType="Label">
             <Setter Property="Padding" Value="0,0,0,2" />
