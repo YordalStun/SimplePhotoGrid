@@ -58,12 +58,13 @@ jobs:
             gh release edit latest-build --notes "$notes" --target "$GITHUB_SHA"
 
             # Drop anything left over from an earlier workflow shape, so the release
-            # always carries exactly one executable.
-            gh release view latest-build --json assets --jq '.assets[].name' \
-              | grep -vx 'SimplePhotoGrid.exe' \
-              | while read -r stale; do
-                  [ -n "$stale" ] && gh release delete-asset latest-build "$stale" --yes
-                done
+            # always carries exactly one executable. Nothing to prune is the normal
+            # case and must not fail the step, hence the `|| true` on the grep.
+            stale=$(gh release view latest-build --json assets --jq '.assets[].name' \
+                    | grep -vx 'SimplePhotoGrid.exe' || true)
+            for name in $stale; do
+              gh release delete-asset latest-build "$name" --yes
+            done
           else
             gh release create latest-build publish/SimplePhotoGrid.exe \
               --title "Latest build" --notes "$notes" --prerelease --target "$GITHUB_SHA"
