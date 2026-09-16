@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>PhotoGridDesign</AssemblyName>
+    <RootNamespace>PhotoGridDesign</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Version>1.0.0</Version>
+    <Product>Photo Grid Design</Product>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+  <!-- Shared with the main app by linking the source rather than duplicating it. These files
+       have no UI dependencies, so both executables compile their own copy. -->
+  <ItemGroup>
+    <Compile Include="..\SimplePhotoGrid\Model\ImageLoader.cs" Link="Shared\ImageLoader.cs" />
+    <Compile Include="..\SimplePhotoGrid\Model\PhotoItem.cs" Link="Shared\PhotoItem.cs" />
+    <Compile Include="..\SimplePhotoGrid\Model\PaperSize.cs" Link="Shared\PaperSize.cs" />
+    <Compile Include="..\SimplePhotoGrid\Rendering\VisualHost.cs" Link="Shared\VisualHost.cs" />
+  </ItemGroup>
+
+</Project>

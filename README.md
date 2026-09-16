@@ -10,16 +10,23 @@ paper size, add a title, print.
 - Live preview that is the exact drawing sent to the printer
 - More than a page's worth of photos spills onto further pages, with page numbers
 - Optional **Explorer right-click entry**: select photos, right-click, "Print with Simple Photo Grid"
+- **Photo fit** choices: fit the whole photo, rotate it to run along the cell's long edge,
+  crop it to fill, or both
 - Photos are **resampled to their printed size and compressed** when you press Print, with a
   progress bar, so print jobs stay in the megabytes rather than the hundreds of megabytes
+- A **Design** button hands your photos to the companion collage program
 
 ## Download
 
-A standalone build (with .NET bundled, nothing to install) is published on every push:
+Standalone builds (with .NET bundled, nothing to install) are published on every push:
 
-**https://github.com/YordalStun/SimplePhotoGrid/releases/download/latest-build/SimplePhotoGrid.exe**
+- **https://github.com/YordalStun/SimplePhotoGrid/releases/download/latest-build/SimplePhotoGrid.exe**
+- **https://github.com/YordalStun/SimplePhotoGrid/releases/download/latest-build/PhotoGridDesign.exe**
 
-It is unsigned, so SmartScreen warns on first run: *More info* -> *Run anyway*.
+Keep both in the **same folder**. The Design button looks for `PhotoGridDesign.exe` next to
+`SimplePhotoGrid.exe`, and says so plainly if it is not there.
+
+They are unsigned, so SmartScreen warns on first run: *More info* -> *Run anyway*.
 
 ## Build
 
@@ -36,6 +43,34 @@ dotnet publish src/SimplePhotoGrid/SimplePhotoGrid.csproj -c Release -r win-x64 
   -p:PublishSingleFile=true -p:SelfContained=true ^
   -p:EnableCompressionInSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o publish
 ```
+
+## Photo fit
+
+By default a photo is scaled to fit its cell whole and upright, which leaves gaps when the photo
+and the cell are different shapes. Three alternatives trade that off:
+
+| Mode | What it does |
+|---|---|
+| Fit whole photo | Default. Nothing cropped, nothing rotated. Gaps where shapes differ. |
+| Rotate to fit | Turns a photo a quarter turn so its long edge runs along the cell's long edge. Bigger, nothing lost, but sideways. |
+| Crop to fill | Fills the cell completely and trims the overflow. Upright, but you lose the edges. |
+| Rotate and crop | Both. The largest a photo can print, at the cost of being sideways and trimmed. |
+
+## The Design program
+
+`PhotoGridDesign.exe` is a separate collage designer. Press **Design...** in the main program and
+your photos carry across; it also runs on its own if you drag photos onto it.
+
+Five layouts: **Mosaic** (justified rows sized to each photo's shape), **Neat grid**,
+**Polaroid scatter** (tilted overlapping frames, with Shuffle), **Hero + band** (one big photo
+over rows of smaller ones) and **Filmstrip**. Eight colour themes, a title and subtitle with a
+choice of heading fonts, and sliders for frame width, corner rounding, spacing, tilt and shadow.
+
+Finished designs **print** through the standard Windows dialog, or **save as a PNG or JPEG** at
+300dpi.
+
+Photos travel between the two programs through a small handoff file in `%TEMP%`, not on the
+command line, which has a length limit a long list of paths would exceed.
 
 ## Explorer right-click integration
 

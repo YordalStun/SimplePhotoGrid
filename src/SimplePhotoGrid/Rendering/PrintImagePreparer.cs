@@ -78,6 +78,7 @@ public static class PrintImagePreparer
     public static PreparedImageSet Prepare(
         IReadOnlyList<PhotoItem> photos,
         Size cellPixels,
+        PhotoFit fit,
         int jpegQuality,
         IProgress<PreparationProgress>? progress,
         CancellationToken token)
@@ -99,7 +100,7 @@ public static class PrintImagePreparer
                 var path = paths[i];
                 progress?.Report(new PreparationProgress(i, paths.Count, Path.GetFileName(path)));
 
-                var prepared = PrepareOne(path, directory, i, cellPixels, jpegQuality);
+                var prepared = PrepareOne(path, directory, i, cellPixels, fit, jpegQuality);
                 if (prepared is not null) images[path] = prepared;
             }
         }
@@ -114,15 +115,9 @@ public static class PrintImagePreparer
     }
 
     private static PreparedImage? PrepareOne(string path, string directory, int index,
-                                             Size cellPixels, int jpegQuality)
+                                             Size cellPixels, PhotoFit fit, int jpegQuality)
     {
-        // A photo is drawn to fit inside the cell, so its long edge on paper is never larger
-        // than the cell's long edge. Decoding to that cap does the downscaling for us, and
-        // never upscales a photo that is already smaller.
-        var cap = (int)Math.Ceiling(Math.Max(cellPixels.Width, cellPixels.Height));
-        cap = Math.Clamp(cap, 64, PrintQuality.MaxPixelsPerSide);
-
-        var source = ImageLoader.Load(path, cap);
+        var source = ImageLoader.Load(path, ResolveCap(path, cellPixels, fit));
         if (source is null) return null;
 
         // JPEG has no alpha channel, so anything that might carry transparency stays PNG rather
@@ -142,6 +137,23 @@ public static class PrintImagePreparer
         }
 
         return new PreparedImage(file, new FileInfo(file).Length, source.PixelWidth, source.PixelHeight);
+    }
+
+    /// <summary>Pixels to keep on the source's long edge: exactly what the photo resolves to
+    /// once drawn at its printed size. Cropping needs more pixels than fitting, because part of
+    /// the photo falls outside the cell, so the fit mode has to be taken into account. Falls back
+    /// to the cell's long edge when the header cannot be read.</summary>
+    private static int ResolveCap(string path, Size cellPixels, PhotoFit fit)
+    {
+        var cap = Math.Max(cellPixels.Width, cellPixels.Height);
+
+        if (ImageLoader.TryGetPixelSize(path) is { Width: > 0, Height: > 0 } size)
+        {
+            var scale = fit.ScaleFor(size.Width, size.Height, cellPixels.Width, cellPixels.Height);
+            cap = Math.Max(size.Width, size.Height) * scale;
+        }
+
+        return Math.Clamp((int)Math.Ceiling(cap), 64, PrintQuality.MaxPixelsPerSide);
     }
 
     private static bool MayHaveAlpha(PixelFormat format) =>

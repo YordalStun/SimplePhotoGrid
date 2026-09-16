@@ -173,16 +173,7 @@ public sealed class SheetRenderer
         }
         else
         {
-            var scale = Math.Min(imageArea.Width / bitmap.PixelWidth, imageArea.Height / bitmap.PixelHeight);
-            var width = bitmap.PixelWidth * scale;
-            var height = bitmap.PixelHeight * scale;
-            var placed = new Rect(
-                imageArea.X + (imageArea.Width - width) / 2,
-                imageArea.Y + (imageArea.Height - height) / 2,
-                width, height);
-
-            dc.DrawImage(bitmap, placed);
-            if (_settings.ShowBorders) dc.DrawRectangle(null, BorderPen, placed);
+            DrawPhoto(dc, imageArea, bitmap);
         }
 
         if (captionHeight <= 0) return;
@@ -193,6 +184,57 @@ public sealed class SheetRenderer
         caption.MaxLineCount = 1;
         caption.Trimming = TextTrimming.CharacterEllipsis;
         dc.DrawText(caption, new Point(cell.X, cell.Bottom - captionHeight + 1));
+    }
+
+    private void DrawPhoto(DrawingContext dc, Rect area, BitmapSource bitmap)
+    {
+        var fit = _settings.Fit;
+        var rotate = fit.Rotates &&
+                     PhotoFit.ShouldRotate(bitmap.PixelWidth, bitmap.PixelHeight, area.Width, area.Height);
+
+        // Rotation only relabels the axes, so measure the photo as it will sit in the cell.
+        var sourceWidth = rotate ? bitmap.PixelHeight : bitmap.PixelWidth;
+        var sourceHeight = rotate ? bitmap.PixelWidth : bitmap.PixelHeight;
+
+        var scale = fit.Crops
+            ? Math.Max(area.Width / sourceWidth, area.Height / sourceHeight)
+            : Math.Min(area.Width / sourceWidth, area.Height / sourceHeight);
+
+        var width = sourceWidth * scale;
+        var height = sourceHeight * scale;
+        var placed = new Rect(
+            area.X + (area.Width - width) / 2,
+            area.Y + (area.Height - height) / 2,
+            width, height);
+
+        // Cropping overflows the cell by design, so clip it back to the cell.
+        var clipped = fit.Crops;
+        if (clipped) dc.PushClip(new RectangleGeometry(area));
+
+        if (rotate)
+        {
+            var centreX = placed.X + placed.Width / 2;
+            var centreY = placed.Y + placed.Height / 2;
+
+            // Draw into the rect that becomes `placed` once turned a quarter turn about its centre.
+            var upright = new Rect(
+                centreX - placed.Height / 2,
+                centreY - placed.Width / 2,
+                placed.Height, placed.Width);
+
+            dc.PushTransform(new RotateTransform(90, centreX, centreY));
+            dc.DrawImage(bitmap, upright);
+            dc.Pop();
+        }
+        else
+        {
+            dc.DrawImage(bitmap, placed);
+        }
+
+        if (clipped) dc.Pop();
+
+        // With cropping the photo's own edges are outside the cell, so outline what is visible.
+        if (_settings.ShowBorders) dc.DrawRectangle(null, BorderPen, clipped ? area : placed);
     }
 
     private FormattedText FormatText(string text, double size, FontWeight weight, Brush brush,

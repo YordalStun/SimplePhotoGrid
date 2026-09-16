@@ -32,6 +32,8 @@ public partial class MainWindow : Window
         GridCombo.SelectedItem = GridPreset.Auto;
         QualityCombo.ItemsSource = PrintQuality.All;
         QualityCombo.SelectedItem = PrintQuality.Normal;
+        FitCombo.ItemsSource = PhotoFit.All;
+        FitCombo.SelectedItem = PhotoFit.Fit;
 
         // Explorer fires one process per selected file; the pipe delivers them in a burst, so
         // coalesce redraws rather than re-rendering the sheet twenty times.
@@ -216,6 +218,7 @@ public partial class MainWindow : Window
         _settings.ShowBorders = BordersCheck.IsChecked == true;
         _settings.ShowPageNumbers = PageNumbersCheck.IsChecked == true;
         _settings.Quality = QualityCombo.SelectedItem as PrintQuality ?? PrintQuality.Normal;
+        _settings.Fit = FitCombo.SelectedItem as PhotoFit ?? PhotoFit.Fit;
     }
 
     private static double ParseNumber(string text, double fallback, double min, double max) =>
@@ -231,6 +234,14 @@ public partial class MainWindow : Window
         PreviewHost.Width = size.Width;
         PreviewHost.Height = size.Height;
         PreviewHost.Child = _renderer.RenderPage(_pageIndex);
+
+        FitHint.Text = _settings.Fit switch
+        {
+            { Rotates: false, Crops: false } => "Whole photo, upright. Gaps where its shape differs from the cell.",
+            { Rotates: true, Crops: false } => "Turns photos a quarter turn so they run along the cell's long edge. Nothing is cut off.",
+            { Rotates: false, Crops: true } => "Fills each cell completely. The edges of the photo are trimmed off.",
+            _ => "Turns photos and fills each cell. Biggest possible, but sideways and trimmed."
+        };
 
         EmptyHint.Visibility = _photos.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         PageText.Text = $"Page {_pageIndex + 1} of {_renderer.PageCount}";
@@ -328,8 +339,8 @@ public partial class MainWindow : Window
             var token = progressWindow.Token;
 
             using var prepared = await Task.Run(
-                () => PrintImagePreparer.Prepare(photos, targetPixels, _settings.Quality.JpegQuality,
-                                                 reporter, token),
+                () => PrintImagePreparer.Prepare(photos, targetPixels, _settings.Fit,
+                                                 _settings.Quality.JpegQuality, reporter, token),
                 token);
 
             token.ThrowIfCancellationRequested();
@@ -360,6 +371,39 @@ public partial class MainWindow : Window
             progressWindow.Close();
             IsEnabled = true;
             _printing = false;
+        }
+    }
+
+    // ---------------------------------------------------------------- design
+
+    private void OnDesignClick(object sender, RoutedEventArgs e)
+    {
+        if (_photos.Count == 0)
+        {
+            MessageBox.Show(this, "Add some photos first.", "Simple Photo Grid",
+                            MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        if (DesignLauncher.FindExecutable() is null)
+        {
+            MessageBox.Show(this,
+                $"{DesignLauncher.ExecutableName} is not in this folder.\n\n" +
+                "The Design program is a separate download. Put it in the same folder as " +
+                "SimplePhotoGrid.exe and this button will open it with your photos.",
+                "Design", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        try
+        {
+            DesignLauncher.Launch(_photos.Select(photo => photo.FilePath));
+            StatusText.Text = $"Opened Design with {_photos.Count} photo(s).";
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, "Could not start the Design program:\n\n" + ex.Message,
+                            "Design", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 

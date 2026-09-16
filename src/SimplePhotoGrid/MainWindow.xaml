@@ -92,6 +92,11 @@
                     <Label Content="Layout" Margin="0,8,0,2" />
                     <ComboBox x:Name="GridCombo" SelectionChanged="OnSettingChanged" />
 
+                    <Label Content="Photo fit" Margin="0,8,0,2" />
+                    <ComboBox x:Name="FitCombo" SelectionChanged="OnSettingChanged" />
+                    <TextBlock x:Name="FitHint" TextWrapping="Wrap" Foreground="#FF666666"
+                               FontSize="11" Margin="0,6,0,0" />
+
                     <Grid Margin="0,8,0,0">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
@@ -148,6 +153,7 @@
                     <Button Content="&#x25B6;" Click="OnNextPageClick" MinWidth="40" />
                 </StackPanel>
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button Content="Design..." Click="OnDesignClick" Padding="18,6" Margin="0,0,8,0" />
                     <Button Content="Print..." Click="OnPrintClick" Padding="24,6" FontWeight="SemiBold" />
                 </StackPanel>
                 <TextBlock x:Name="StatusText" VerticalAlignment="Center" Margin="16,0"

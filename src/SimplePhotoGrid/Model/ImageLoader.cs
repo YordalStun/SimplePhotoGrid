@@ -53,6 +53,31 @@ public static class ImageLoader
         }
     }
 
+    /// <summary>Reads the pixel dimensions from the file header without decoding the image,
+    /// with EXIF orientation applied so the size matches how the photo will be drawn.</summary>
+    public static System.Windows.Size? TryGetPixelSize(string path)
+    {
+        try
+        {
+            using var stream = File.OpenRead(path);
+            var decoder = BitmapDecoder.Create(
+                stream, BitmapCreateOptions.DelayCreation, BitmapCacheOption.None);
+
+            if (decoder.Frames.Count == 0) return null;
+            var frame = decoder.Frames[0];
+
+            double width = frame.PixelWidth;
+            double height = frame.PixelHeight;
+            if (ReadOrientation(frame) is 5 or 6 or 7 or 8) (width, height) = (height, width);
+
+            return new System.Windows.Size(width, height);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     private static int ReadOrientation(BitmapFrame frame)
     {
         try

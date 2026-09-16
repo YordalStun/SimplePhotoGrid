@@ -24,6 +24,8 @@ public sealed class SheetSettings
     public bool CaptionsIncludeExtension { get; set; }
     public double CaptionFontSize { get; set; } = 8;
 
+    public PhotoFit Fit { get; set; } = PhotoFit.Fit;
+
     public PrintQuality Quality { get; set; } = PrintQuality.Normal;
 
     public bool ShowBorders { get; set; } = true;

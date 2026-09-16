@@ -21,12 +21,22 @@ jobs:
           dotnet-version: "8.0.x"
 
       - name: Build
-        run: dotnet build src/SimplePhotoGrid/SimplePhotoGrid.csproj -c Release
+        run: dotnet build SimplePhotoGrid.sln -c Release
 
-      # One self-contained file: .NET is bundled, nothing to install on the target machine.
-      - name: Publish
+      # Self-contained single files: .NET is bundled, nothing to install on the target machine.
+      # The Design program is a separate executable and lives beside the main one.
+      - name: Publish Simple Photo Grid
         run: >
           dotnet publish src/SimplePhotoGrid/SimplePhotoGrid.csproj
+          -c Release -r win-x64 --self-contained true
+          -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:DebugType=none
+          -o publish
+
+      - name: Publish Photo Grid Design
+        run: >
+          dotnet publish src/PhotoGridDesign/PhotoGridDesign.csproj
           -c Release -r win-x64 --self-contained true
           -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true
           -p:IncludeNativeLibrariesForSelfExtract=true
@@ -36,7 +46,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: SimplePhotoGrid
-          path: publish/SimplePhotoGrid.exe
+          path: |
+            publish/SimplePhotoGrid.exe
+            publish/PhotoGridDesign.exe
 
       # Artifacts are zipped and expire after 90 days. A rolling prerelease gives a stable,
       # direct link to the raw .exe that never expires.
@@ -49,23 +61,25 @@ jobs:
 
           notes="Automatic build of \`${GITHUB_REF_NAME}\` at \`${GITHUB_SHA:0:7}\`.
 
-          **SimplePhotoGrid.exe** - standalone, .NET included, nothing to install.
+          - **SimplePhotoGrid.exe** - the contact sheet printer. Standalone, .NET included.
+          - **PhotoGridDesign.exe** - collage designs. Put it in the SAME FOLDER as
+            SimplePhotoGrid.exe for the Design button to find it.
 
           Unsigned, so SmartScreen will warn on first run: More info -> Run anyway."
 
           if gh release view latest-build >/dev/null 2>&1; then
-            gh release upload latest-build publish/SimplePhotoGrid.exe --clobber
+            gh release upload latest-build publish/SimplePhotoGrid.exe publish/PhotoGridDesign.exe --clobber
             gh release edit latest-build --notes "$notes" --target "$GITHUB_SHA"
 
             # Drop anything left over from an earlier workflow shape, so the release
             # always carries exactly one executable. Nothing to prune is the normal
             # case and must not fail the step, hence the `|| true` on the grep.
             stale=$(gh release view latest-build --json assets --jq '.assets[].name' \
-                    | grep -vx 'SimplePhotoGrid.exe' || true)
+                    | grep -vxE 'SimplePhotoGrid\.exe|PhotoGridDesign\.exe' || true)
             for name in $stale; do
               gh release delete-asset latest-build "$name" --yes
             done
           else
-            gh release create latest-build publish/SimplePhotoGrid.exe \
+            gh release create latest-build publish/SimplePhotoGrid.exe publish/PhotoGridDesign.exe \
               --title "Latest build" --notes "$notes" --prerelease --target "$GITHUB_SHA"
           fi
